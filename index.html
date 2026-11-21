@@ -693,6 +693,84 @@ textarea.field{min-height:130px;resize:vertical}
 </a>
 
 <script>
+/* Hero typing rotator — deliberately standalone: its own script block, its
+   own try/catch, started on DOMContentLoaded. It shares no code path with
+   the main script below (grid rendering, hero video autoplay, canvas
+   chroma-keying, reveal observers), so an error or stall anywhere else on
+   the page can never stop the type → hold → delete → next-role loop. It
+   depends on nothing but the #typedRole element itself: no
+   IntersectionObserver, no fonts, no video. Timers are tracked by
+   deadline — if the browser throttles them while the tab is hidden, the
+   loop re-arms with the correct remaining time on visibilitychange. The
+   caret next to it blinks via the pure-CSS `blink` animation on
+   .typing-caret and needs no JS at all. If the user has set
+   prefers-reduced-motion, the first role is shown statically instead. */
+(function(){
+  "use strict";
+  var ROLES = ["Full-Stack Developer", "AI Software & Web App Developer", "Business Systems Builder"];
+  var TYPE_MS = 65, DELETE_MS = 30, HOLD_MS = 1600;
+  var started = false;
+
+  function start(){
+    if (started) return; started = true;
+    try {
+      var el = document.getElementById("typedRole");
+      if (!el) return;
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        el.textContent = ROLES[0];
+        return;
+      }
+      var ri = 0;                 /* current role index */
+      var ci = ROLES[0].length;   /* chars shown (first role starts full, as rendered) */
+      var phase = "hold";         /* hold -> delete -> type -> hold ... */
+      var timer = null, pending = null, deadline = 0;
+
+      function later(fn, delay){
+        pending = fn; deadline = Date.now() + delay;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(fire, delay);
+      }
+      function fire(){
+        var fn = pending; pending = null; timer = null;
+        if (fn) { try { fn(); } catch (e) { later(fn, 500); } }
+      }
+      function step(){
+        var word = ROLES[ri];
+        if (phase === "hold") {
+          phase = "delete";
+          later(step, 60);
+        } else if (phase === "delete") {
+          ci--;
+          if (ci <= 0) { ci = 0; ri = (ri + 1) % ROLES.length; phase = "type"; }
+          el.textContent = ROLES[ri].slice(0, ci);
+          later(step, phase === "type" ? 350 : DELETE_MS);
+        } else { /* type */
+          ci++;
+          word = ROLES[ri];
+          if (ci >= word.length) { ci = word.length; phase = "hold"; el.textContent = word; later(step, HOLD_MS); return; }
+          el.textContent = word.slice(0, ci);
+          later(step, TYPE_MS);
+        }
+      }
+      /* resume correctly after the tab was hidden and timers throttled */
+      document.addEventListener("visibilitychange", function(){
+        if (document.hidden || !pending) return;
+        var remaining = deadline - Date.now();
+        if (timer) clearTimeout(timer);
+        if (remaining <= 0) fire();
+        else timer = setTimeout(fire, remaining);
+      });
+      el.textContent = ROLES[0];
+      later(step, HOLD_MS);
+    } catch (e) { /* the static first role in the HTML stays readable */ }
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
+})();
+</script>
+
+<script>
 (function(){
   "use strict";
   var $ = function(s, c){ return (c||document).querySelector(s); };
@@ -767,17 +845,9 @@ textarea.field{min-height:130px;resize:vertical}
     });
   });
 
-  /* typing */
-  var ROLES = ["Full-Stack Developer", "AI Software & Web App Developer", "Business Systems Builder"];
-  var typed = $("#typedRole"), ri = 0, ci = ROLES[0].length, deleting = true;
-  function tick(){
-    var word = ROLES[ri];
-    if (deleting){ ci--; if (ci <= 0){ deleting = false; ri = (ri + 1) % ROLES.length; ci = 0; } }
-    else { ci++; word = ROLES[ri]; if (ci >= word.length){ deleting = true; typed.textContent = word; setTimeout(tick, 2100); return; } }
-    typed.textContent = ROLES[ri].slice(0, ci);
-    setTimeout(tick, deleting ? 34 : 68);
-  }
-  setTimeout(tick, 1800);
+  /* typing: the hero role rotator lives in its own standalone script
+     block above (search "Hero typing rotator") so it can never be killed
+     by anything in this script. Do not re-add a second loop here. */
 
   /* hero stage video: plays once (no loop) and freezes on the final
      arms-crossed frame inside its right-side stage panel. The video element
