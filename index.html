@@ -377,6 +377,12 @@ textarea.field{min-height:130px;resize:vertical}
   html{scroll-behavior:auto}
   .reveal{opacity:1;transform:none}
   .word{opacity:1}
+  /* Exception: the marquee band must keep scrolling even under reduced
+     motion (owner's explicit call — on Windows, "animation effects off"
+     makes Chrome report reduce and the universal rule above froze the
+     band after a single 0.01ms run). Same loop, just slower. */
+  .marquee-track{animation-duration:44s!important;animation-iteration-count:infinite!important}
+  .marquee-track.rev{animation-duration:58s!important;animation-iteration-count:infinite!important}
 }
 </style>
 </head>
